@@ -125,13 +125,18 @@ mergeInto(LibraryManager.library, {
       }
 
       // wait for reconnect (if we observed a device disconnect)
-      await call_rpc(RPC_WAIT_FOR_RECONNECT, {});
-
+      let devices = await navigator.usb.getDevices();
+      while(devices.length === 0) {
+        console.log("no devices found in libusb_init, waiting 1000ms then trying again");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        devices = await navigator.usb.getDevices();
+      }
+      
       // assign the default context
       setValue(ctx, LIBUSB_DEFAULT_CONTEXT, "i32");
 
       // get the device count and allocate handles
-      let devices = await navigator.usb.getDevices();
+      devices = await navigator.usb.getDevices();
       navigator.usb_device_count = devices.length;
       navigator.usb_device_handles = [];
       for(let i = 0; i < navigator.usb_device_count; i++) {
