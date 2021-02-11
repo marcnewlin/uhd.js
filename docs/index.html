@@ -1,0 +1,240 @@
+<html>
+
+  <head>
+
+    <link rel="stylesheet" href="libusb.css" />
+
+    <script>
+
+      async function init() {
+
+        let found = false;
+        let device = undefined;
+
+        let vendor_id = 0x2500;
+
+        let product_ids = [
+          0x0020, /* B200, B210 */
+          0x7813, /* B200 (National Instruments) */
+          0x7814, /* B210 (National Instruments) */
+          0x0021, /* B200mini	*/
+          0x0022, /* B205mini */
+        ];
+
+        // check if the user previously authorized a 
+        // matching device which is currently attached
+        let devices = await navigator.usb.getDevices();
+        let filtered = devices.filter(function(d) {
+          return d.vendorId == vendor_id && product_ids.includes(d.productId);
+        });
+        if(filtered.length > 0) { found = true; device=filtered[0]; }
+
+        // no pre-auth'd device found
+        else {
+
+          // request access to one of the specified USB devices (via the USB auth dialog)
+          let filters = [];
+          for(let pid of product_ids) {
+            filters.push( { vendorId: vendor_id, productId: pid });
+          }
+          device = await navigator.usb.requestDevice({filters: filters});
+
+          // check if the user authorized a device
+          if(device !== undefined) found = true;
+        }
+
+        // if a device was found, proceed with the wasm loader
+        let vid = device.vendorId;
+        let pid = device.productId;
+        console.log(device);
+        if(found === true) {
+          console.log(`The requested USB device ${vid.toString(16)}:${pid.toString(16)} was found.`);
+        }
+
+        // no device found, inform the user
+        else {
+          console.log("The wasm loader is not being called, because the USB device was not found.");
+          return;
+        }
+
+        // start the runtime by appending a "main.js" script tag
+        console.log(Module);
+        let s = document.createElement("script");
+        s.src = "main.js";
+        document.body.appendChild(s);
+        start_offset = performance.now();
+      }
+
+      var active_error_message = false;
+      var active_error_message_id = -1;
+      var log_msg_count = 0;
+
+      function uhd_log(level, component, message) {
+
+        if(level !== "info") return;
+
+        const log_div = document.getElementById("log");
+
+        let ts = `<div class='log-cell log-timestamp'>${parseInt(performance.now()-start_offset, 10)}</div>`;
+        let td2 = `<div class='log-cell log-level-${level}'>${level.toUpperCase()}</div>`;
+        let td3 = `<div class='log-cell log-level-${level}'>${component}</div>`;
+        let td4 = `<div class='log-cell log-message'>${message}</div>`;
+        let entry = `<div class='log-entry-row'>${ts}${td2}${td3}${td4}</div>`;
+
+        log_div.innerHTML += entry;
+      }
+
+      async function handle_stderr(line) {
+        let msg = line;
+
+        if(line.includes(";39m")) {
+        
+          let re =  /\d;\d+m\[(.+?)\] \[(.+?)\] .\[\d;\d+m(.+)/mg;
+          let groups = re.exec(line);
+          let level = groups[1].toLowerCase();
+          let component = groups[2];
+        
+          msg = groups[3];  
+          uhd_log(level, component, msg);
+          log_msg_count += 1;
+        }
+        console.log("[stderr] %c" + msg, "color:blue;");
+      }
+
+      async function handle_stdout(msg) {
+        console.log("[stdout] %c" + msg, "color:purple;");
+      }
+
+      var Module = {
+        printErr: handle_stderr,
+        logReadFiles: true,
+        noInitialRun: true,
+        onRuntimeInitialized: async function() {
+          console.error("onRuntimeInitialized");
+
+          let pb = Module._power_buffer()/4;
+          var pixel_buffer_view = HEAPF32.subarray(pb, pb+512*1024);
+
+          window.draw_waterfall = function() {
+
+            let row_offset = Module._row_offset();
+
+            const width = 512;
+            const height = 1024;
+
+            const range = {
+              low: -80.0,
+              high: -20.0,
+            };
+
+            var waterfall = document.getElementById('waterfall');
+            var ctx = waterfall.getContext('2d');
+
+            var data = new ImageData(width, height);
+
+            for(let row = 0; row < height; row++) {
+
+              let r = row;
+              if(row_offset != -1) {
+                r = r - row_offset;
+                if(r < 0) r += height;
+              }
+
+              for(let col = 0; col < width; col++) {
+
+                let f = pixel_buffer_view[row*width+col];
+                if(f < range.low || f == 0.0) f = range.low;
+                else if(f > range.high && f < 0.0) f = range.high;
+                f = (f - range.low) * 255.0 / (range.high - range.low);
+
+                data.data[(r*width+col)*4+1] = f;
+                data.data[(r*width+col)*4+3] = 255;
+              }
+            }
+
+            ctx.scale(1, -1);
+            ctx.putImageData(data, 0, 0);
+
+            window.requestAnimationFrame(window.draw_waterfall);
+          };
+          
+          window.requestAnimationFrame(window.draw_waterfall);
+
+          // fetch any defined input files into memfs
+          let image_list = [
+            "usrp_b200_fpga.bin",
+            "usrp_b200_fw.hex",
+            "usrp_b200mini_fpga.bin",
+            "usrp_b205mini_fpga.bin",
+            "usrp_b210_fpga.bin",
+          ];
+
+          FS.mkdir("/images");
+          for(let f of image_list) {
+
+            // fetch the remote file
+            let url = `/images/${f}`;
+            uhd_log("info", "Client", `Loading '${url}'`);
+            console.log(`fetching '${url}'`);
+            let res = await fetch(url);
+            if(res.ok !== true) {
+              console.error(`error fetching file '${url}', aborting`);
+              return;
+            }
+
+            // get the file contents as an ArrayBuffer
+            let buff = new Uint8Array(await res.arrayBuffer());
+
+            // write the file to the MEMFS
+            let can_read = true;
+            let can_write = false;
+            console.log("going to write the file to " + url);
+            FS.writeFile(url, buff);
+            console.log(url);
+          }
+
+          // kick off the UHD loop
+          callMain();
+        },
+      };
+
+
+    </script>
+  </head>
+
+  <body>
+
+    <div id="header">
+        
+      <button id="start" type="button" value="Start" onclick="init();">
+        Start
+      </button>
+
+      <div id="telemetry">
+        <div class="telemetry-entry">
+          <div class="telemetry-name"></div>
+          <div class="telemetry-value" id="clock"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <canvas id="waterfall" width=512 height=1024 style="float: right;">
+
+    </canvas>
+
+    <div id="log">
+
+    </div>
+
+    <script>
+      var clock_div = document.getElementById("clock");
+      var rpc_count_div = document.getElementById("rpc-count");
+      var start_offset = 0;
+      setInterval(() => {
+        clock_div.innerHTML = (performance.now() - start_offset).toFixed(3);
+      }, 50);
+    </script>
+
+  </body>
+</html>
