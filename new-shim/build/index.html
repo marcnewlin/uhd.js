@@ -2,21 +2,14 @@
 
   <head>
 
-    <!-- <link rel="stylesheet" href="uPlot.min.css"> -->
-    <!-- <script src="uPlot.iife.min.js"></script> -->
-<!--  -->
     <link rel="stylesheet" href="libusb.css" />
 
     <script>
-
 
       async function init() {
 
         let found = false;
         let device = undefined;
-
-        // let vid = 0x2500; // Ettus
-        // let pid = 0x0020; // USRP B210
 
         let vendor_id = 0x2500;
 
@@ -64,13 +57,12 @@
           return;
         }
 
-        start_offset = performance.now();
-
         // start the runtime by appending a "main.js" script tag
         console.log(Module);
         let s = document.createElement("script");
         s.src = "main.js";
         document.body.appendChild(s);
+        start_offset = performance.now();
       }
 
       var active_error_message = false;
@@ -93,23 +85,17 @@
       }
 
       async function handle_stderr(line) {
-
         let msg = line;
 
         if(line.includes(";39m")) {
-
-          // [1;34m[DEBUG] [CONVERT] [0;39mget_converter: For converter ID: conversion ID
-
-
+        
           let re =  /\d;\d+m\[(.+?)\] \[(.+?)\] .\[\d;\d+m(.+)/mg;
           let groups = re.exec(line);
-          // console.log(groups);
           let level = groups[1].toLowerCase();
           let component = groups[2];
-          msg = groups[3];
-          
+        
+          msg = groups[3];  
           uhd_log(level, component, msg);
-
           log_msg_count += 1;
         }
         console.log("[stderr] %c" + msg, "color:blue;");
@@ -121,7 +107,6 @@
 
       var Module = {
         printErr: handle_stderr,
-        // print: handle_stdout,
         logReadFiles: true,
         noInitialRun: true,
         onRuntimeInitialized: async function() {
@@ -133,9 +118,6 @@
           window.draw_waterfall = function() {
 
             let row_offset = Module._row_offset();
-            // if(row_offset != -1) row_offset = row_offset % 512;
-
-            // console.log(`row_offset: ${row_offset}`);
 
             const width = 512;
             const height = 1024;
@@ -158,8 +140,6 @@
                 if(r < 0) r += height;
               }
 
-              // r = height-r;
-
               for(let col = 0; col < width; col++) {
 
                 let f = pixel_buffer_view[row*width+col];
@@ -169,20 +149,8 @@
 
                 data.data[(r*width+col)*4+1] = f;
                 data.data[(r*width+col)*4+3] = 255;
-
               }
             }
-
-            // for(let i = 0; i < pixel_buffer_view.length; i++) {
-
-            //   let f = pixel_buffer_view[i];
-            //   if(f < range.low || f == 0.0) f = range.low;
-            //   else if(f > range.high && f < 0.0) f = range.high;
-            //   f = (f + 80.0) * 255.0 / 60.0;
-
-            //   data.data[i*4+1] = f;
-            //   data.data[i*4+3] = f;
-            // }
 
             ctx.scale(1, -1);
             ctx.putImageData(data, 0, 0);
@@ -217,20 +185,16 @@
             // get the file contents as an ArrayBuffer
             let buff = new Uint8Array(await res.arrayBuffer());
 
-            // create the lazy-loaded file
+            // write the file to the MEMFS
             let can_read = true;
             let can_write = false;
-            // console.log(f.local_path);
             console.log("going to write the file to " + url);
             FS.writeFile(url, buff);
             console.log(url);
           }
 
-          // kick off the UHD flow
-          console.log("before callMain();");
+          // kick off the UHD loop
           callMain();
-          console.log("after callMain();");
-
         },
       };
 
@@ -245,12 +209,6 @@
       <button id="start" type="button" value="Start" onclick="init();">
         Start
       </button>
-      <!-- <input type="button" value="Init 2" onclick="window.do_usb_wasm_init();" /> -->
-      <!-- <input type="button" value="Init UHD" onclick="window.do_init_uhd();" /> -->
-
-      <!-- <div id="radio-config"> -->
-        <!-- <div>frequency: <input type="number" id="input-freq"></input></div> -->
-      <!-- </div> -->
 
       <div id="telemetry">
         <div class="telemetry-entry">
@@ -276,7 +234,6 @@
       setInterval(() => {
         clock_div.innerHTML = (performance.now() - start_offset).toFixed(3);
       }, 50);
-      // document.getElementById("clock").innerHTML = performance.now();
     </script>
 
   </body>
