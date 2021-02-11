@@ -6,7 +6,8 @@
 
     <script>
 
-      async function init() {
+
+      async function get_device() {
 
         let found = false;
         let device = undefined;
@@ -43,11 +44,55 @@
           if(device !== undefined) found = true;
         }
 
+        return device;
+      }
+
+      window.get_device_error_count = 0;
+
+      async function do_get_device() {
+        try {
+          let d = await get_device();
+          window.get_device_error_count = 0;
+          setTimeout(do_get_device, 1000);
+        }
+        catch(error) {
+
+          window.get_device_error_count++;
+          console.error(error);
+          console.error("error count ", window.get_device_error_count);
+
+          if(window.get_device_error_count > 2) {
+            let b = document.createElement("button");
+            b.id = "reauth";
+            b.style.padding = "1em";
+            b.onclick = () => {
+              do_get_device();
+              document.getElementById("reauth").hidden = true;
+            };
+            b.innerHTML = "<span style='color: blue; font-weight: bold;'>Click here to re-authorize the device. This is only necessary once on this browser.</span>";
+            document.body.appendChild(b);
+          }
+
+          else {
+            setTimeout(do_get_device, 1000);
+          }
+
+          // console.error("do_get_device error");
+          // console.error(error);
+        }
+        
+        // console.log(d);
+      }
+
+      async function init() {
+
         // if a device was found, proceed with the wasm loader
+        let device = await get_device();
         let vid = device.vendorId;
         let pid = device.productId;
         console.log(device);
-        if(found === true) {
+        console.log(typeof device);
+        if(device !== undefined) {
           console.log(`The requested USB device ${vid.toString(16)}:${pid.toString(16)} was found.`);
         }
 
@@ -63,6 +108,7 @@
         s.src = "main.js";
         document.body.appendChild(s);
         start_offset = performance.now();
+        do_get_device();
       }
 
       var active_error_message = false;

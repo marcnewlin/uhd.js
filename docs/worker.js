@@ -10,7 +10,7 @@ const rpc = {
       return LIBUSB_SUCCESS;
     }
     catch(error) {
-      console.error(`error in rpc._call(...) in worker.js:`);
+      console.error(`error in rpc._call(...) in worker.js, returning ${error_code}:`);
       console.error(error);
       return error_code;
     }
@@ -126,31 +126,6 @@ const rpc = {
 
 
   wait_for_reconnect: async function() {
-  
-    // setup disconnect/reconnect handlers
-    if(navigator.reconnect_initialized === undefined) {
-      navigator.disconnect_counter = 0;
-      navigator.reconnect_resolver = null;
-      navigator.reconnect_initialized = performance.now();
-    
-      // device reconnect handler
-      navigator.usb.onconnect = (e) => {
-        navigator.disconnect_counter--;
-        if(navigator.reconnect_resolver !== null) {
-  
-          // wait 500ms, then resolve
-          setTimeout(() => {
-            navigator.reconnect_resolver();
-            navigator.reconnect_resolver = null;
-          }, 500);
-        }
-      };
-      
-      // device disconnect handler
-      navigator.usb.ondisconnect = (e) => {
-        navigator.disconnect_counter++;
-      };
-    }
   
     // if we saw a disconnect, wait for the device to reconnect
     if(navigator.disconnect_counter > 0) {
@@ -547,6 +522,34 @@ navigator.usb_ports = [];
 navigator.output_transfers = {};
 navigator.input_transfers = {};
 rpc.timeout_transfers();
+
+
+/*
+  setup disconnect/reconnect handlers
+*/
+if(navigator.reconnect_initialized === undefined) {
+  navigator.disconnect_counter = 0;
+  navigator.reconnect_resolver = null;
+  navigator.reconnect_initialized = performance.now();
+
+  // device reconnect handler
+  navigator.usb.onconnect = (e) => {
+    navigator.disconnect_counter--;
+    if(navigator.reconnect_resolver !== null) {
+
+      // wait 500ms, then resolve
+      setTimeout(() => {
+        navigator.reconnect_resolver();
+        navigator.reconnect_resolver = null;
+      }, 500);
+    }
+  };
+  
+  // device disconnect handler
+  navigator.usb.ondisconnect = (e) => {
+    navigator.disconnect_counter++;
+  }
+}
 
 
 /*
