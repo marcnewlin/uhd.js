@@ -173,7 +173,7 @@
           for(let f of image_list) {
 
             // fetch the remote file
-            let url = `/images/${f}`;
+            let url = `images/${f}`;
             uhd_log("info", "Client", `Loading '${url}'`);
             console.log(`fetching '${url}'`);
             let res = await fetch(url);
