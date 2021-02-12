@@ -116,6 +116,10 @@ const rpc = {
   claim_interface: async function(dev_handle, interface_number) {
     return await rpc.wrap(async() => {
       let d = navigator.usb_device_map[dev_handle];
+
+      // select the first configuration if there isn't an active configuration
+      if (d.configuration === null) await d.selectConfiguration(1);
+
       return await d.claimInterface(interface_number);
     }, arguments.callee.name);
   },
