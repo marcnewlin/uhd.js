@@ -7,6 +7,26 @@
     <script>
 
 
+      function show_get_device_prompt() {
+        uhd_log("info", "WebUSB", "<span style='font-weight: bold;'>ACTION REQUIRED: </span><br /><br /><a href='javascript:do_get_device();' id='reauth'>CLICK HERE TO RE-AUTHORIZE THE USB DEVICE</a><br /><br /> This can be necessary when a device reconnects with a changed device descriptor (i.e. after a firmware update).<br />");
+      }
+
+      
+      async function do_get_device() {
+        let a = document.getElementById("reauth");
+        let msg = a.parentElement;
+
+        try {
+          await get_device();
+          msg.innerHTML = "<strike>ACTION REQUIRED: <br /><br />CLICK HERE TO RE-AUTHORIZE THE USB DEVICE</strike><br /><br /> This can be necessary when a device reconnects with a changed device descriptor (i.e. after a firmware update).<br />"
+        }
+
+        catch(e) {
+          // NOP (auth dialog cancellation)
+        }
+      }
+
+
       async function get_device() {
 
         let found = false;
@@ -49,36 +69,6 @@
 
       window.get_device_error_count = 0;
 
-      async function do_get_device() {
-        try {
-          let d = await get_device();
-          window.get_device_error_count = 0;
-          setTimeout(do_get_device, 1000);
-        }
-        catch(error) {
-
-          window.get_device_error_count++;
-          console.error(error);
-          console.error("error count ", window.get_device_error_count);
-
-          if(window.get_device_error_count > 2) {
-            let b = document.createElement("button");
-            b.id = "reauth";
-            b.style.padding = "1em";
-            b.onclick = () => {
-              do_get_device();
-              document.getElementById("reauth").hidden = true;
-            };
-            b.innerHTML = "<span style='color: blue; font-weight: bold;'>Click here to re-authorize the device. This is only necessary once on this browser.</span>";
-            document.body.appendChild(b);
-          }
-
-          else {
-            setTimeout(do_get_device, 1000);
-          }
-        }
-      }
-
       async function init() {
 
         // if a device was found, proceed with the wasm loader
@@ -103,7 +93,7 @@
         s.src = "main.js";
         document.body.appendChild(s);
         start_offset = performance.now();
-        do_get_device();
+        // do_get_device();
       }
 
       var active_error_message = false;

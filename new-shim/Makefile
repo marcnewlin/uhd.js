@@ -12,7 +12,7 @@ FLAGS=-pthread \
 			--pre-js=src/libusb/libusb_transfer.js \
 			--pre-js=src/libusb/constants.js \
 			--post-js=src/post.js \
-			--js-library=src/libusb/api.js \
+			--js-library=src/libusb/libusb-api.js \
 			-s ERROR_ON_UNDEFINED_SYMBOLS=1 \
 			-s PROXY_TO_PTHREAD=1 \
 			-s PTHREAD_POOL_SIZE=10
@@ -49,4 +49,4 @@ release: client
 	em++ $(FLAGS) -O3 -o build/main.js $(SRC) $(LIBS) $(INCLUDE)
 
 debug: client
-	em++ $(FLAGS) -O3 -g -s ASSERTIONS=1 -s DISABLE_EXCEPTION_CATCHING=2 -o build/main.js $(SRC) $(LIBS) $(INCLUDE)
+	em++ $(FLAGS) -O3 -g -s ASSERTIONS=1 -s DISABLE_EXCEPTION_CATCHING=0 -o build/main.js $(SRC) $(LIBS) $(INCLUDE)

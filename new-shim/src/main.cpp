@@ -498,6 +498,18 @@ extern "C" {
       // spin up the USB worker thread (RPC server)
       Module.usb_dedicated_worker = new Worker("worker.js");
 
+      Module.usb_dedicated_worker.onmessage = (e) => {
+        switch(e.data.cmd) {
+          case "get-device":
+            show_get_device_prompt();
+            break;
+          default:
+            console.error("unhandled postMessage command: ");
+            console.error(e.data);
+            break;
+        }
+      };
+
       // setup a message channel between each preallocated pthread and the RPC server
       let workers = [].concat(Module.PThread.unusedWorkers, Module.PThread.runningWorkers);
       console.warn(workers);

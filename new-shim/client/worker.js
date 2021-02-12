@@ -4,83 +4,182 @@ importScripts("libusb_transfer.js");
 
 const rpc = {
 
-  _call: async function(promise, error_code, name) {
+  // _call: async function(promise) {
+  //   try {
+
+  //     if(navigator.disconnect_counter > 0) {
+  //       // console.error("waiting for dis")
+  //       return LIBUSB_ERROR_NO_DEVICE;
+  //     }
+
+  //     await promise;
+  //     return LIBUSB_SUCCESS;
+  //   }
+  //   catch(error) {
+
+  //     if(error instanceof DOMException) {
+
+  //       switch(error.message) {
+
+  //         case "The device was disconnected.":
+  //           console.warn("rpc._call returning LIBUSB_ERROR_NO_DEVICE");
+  //           return LIBUSB_ERROR_NO_DEVICE;
+
+  //         default:
+  //           console.error("unhandled DOMException in rpc._call in worker.js:");
+  //           console.error(error.name, error.message);
+  //           throw "";
+  //       }
+
+  //       console.warn("DOMException");
+  //       console.warn("  .message = " + error.message);
+  //       console.warn("  .name    = " + error.name);
+  //       console.warn("  .code    = " + error.code);
+  //       // console.warn(error);
+  //     }
+
+  //     console.error(`error in rpc._call(...) in worker.js, returning ${error_code}:`);
+  //     console.error(error);
+  //     // console.error(typeof error);
+  //     return error_code;
+  //   }
+  // },
+
+  wrap: async function(func, name) {
+
     try {
-      await promise;
-      return LIBUSB_SUCCESS;
+      return await func();
     }
-    catch(error) {
-      console.error(`error in rpc._call(...) in worker.js, returning ${error_code}:`);
-      console.error(error);
-      return error_code;
+    catch(e) {
+
+      // handle device disconnect
+      if(e instanceof DOMException) {
+        if(e.message == "The device was disconnected.") {
+
+          console.warn("rpc.wrap(...) - detected device disconnect, waiting for reconnect");
+
+          let start = performance.now();
+          let get_device_request_time = 0;
+
+          await new Promise((resolve) => {
+            var interval = setInterval(async () => {
+
+              let elapsed = performance.now() - start;
+
+              try {
+                let device_count = await rpc.get_usb_device_count();
+                elapsed = performance.now() - start;
+                console.warn(`device_count: ${device_count}`);
+
+                if(device_count > 0) {
+                  clearInterval(interval);
+                  resolve();
+                }
+
+                else {
+
+                  if(get_device_request_time === 0 && elapsed > 2000.0) {
+                    get_device_request_time = performance.now();
+                    console.warn("worker.js sending 'get-device' request");
+                    postMessage({
+                      cmd: "get-device",
+                    });
+                  }
+                }
+              }
+              catch(e2) {
+                console.warn(`error checking device count during reconnect:`);
+                console.warn(e2);
+              }
+              
+            }, 500);
+          });
+        }
+      }
+
+      console.warn(e);
+      return LIBUSB_ERROR_NO_DEVICE;
     }
   },
 
 
   claim_interface: async function(dev_handle, interface_number) {
-    let d = navigator.usb_device_map[dev_handle];
-    let promise = d.claimInterface(interface_number);
-    return await rpc._call(promise, LIBUSB_ERROR_NO_DEVICE);
+    return await rpc.wrap(async() => {
+      let d = navigator.usb_device_map[dev_handle];
+      return await d.claimInterface(interface_number);
+    }, arguments.callee.name);
   },
 
 
   release_interface: async function(dev_handle, interface_number) {
-    let d = navigator.usb_device_map[dev_handle];
-    let promise = d.releaseInterface(interface_number);
-    return await rpc._call(promise, LIBUSB_ERROR_NO_DEVICE);
+    return await rpc.wrap(async() => {
+      let d = navigator.usb_device_map[dev_handle];
+      return await d.releaseInterface(interface_number);
+    }, arguments.callee.name);
   },
   
 
   open_device: async function(dev) {
-    let d = navigator.usb_device_map[dev];
-    let promise = d.open();
-    navigator.output_transfers = {};
-    navigator.input_transfers = {};
-    return await rpc._call(promise, LIBUSB_ERROR_NO_DEVICE);
+    return await rpc.wrap(async() => {
+      let d = navigator.usb_device_map[dev];
+      await d.open();
+      navigator.output_transfers = {};
+      navigator.input_transfers = {};
+    }, arguments.callee.name);
   },
   
 
   close_device: async function(dev) {
-    let d = navigator.usb_device_map[dev];
-    let promise = d.close();    
-    return await rpc._call(promise, LIBUSB_ERROR_NO_DEVICE);
+    return await rpc.wrap(async() => {
+      let d = navigator.usb_device_map[dev];
+      await d.close();    
+    }, arguments.callee.name);
   },
 
 
   get_usb_device_count: async function() {
-    navigator.usb_devices = await navigator.usb.getDevices();
-    return navigator.usb_devices.length;
+    return await rpc.wrap(async() => {
+      navigator.usb_devices = await navigator.usb.getDevices();
+      return navigator.usb_devices.length;
+    }, arguments.callee.name);
   },
   
 
   control_transfer_out: async function(dev_handle, setup, data) {
-    let d = navigator.usb_device_map[dev_handle];
-    let result = await d.controlTransferOut(setup, data);
-    return result.bytesWritten;
+    return await rpc.wrap(async() => {
+      let d = navigator.usb_device_map[dev_handle];
+      let result = await d.controlTransferOut(setup, data);
+      return result.bytesWritten;
+    }, arguments.callee.name);
   },
   
 
   control_transfer_in: async function(dev_handle, setup, length) {
-    let d = navigator.usb_device_map[dev_handle];
-    let result = await d.controlTransferIn(setup, length);
-    let buffer = new Uint8Array(result.data.buffer);
-    return buffer;
+    return await rpc.wrap(async() => {
+      let d = navigator.usb_device_map[dev_handle];
+      let result = await d.controlTransferIn(setup, length);
+      let buffer = new Uint8Array(result.data.buffer);
+      return buffer;
+    }, arguments.callee.name);
   },
 
 
   init_session: async function(handles) {
+    return await rpc.wrap(async() => {
 
-    // initialize an empty state
-    navigator.usb_device_map = {};
-    navigator.output_transfers = [];
-    navigator.input_transfers = [];
+      // initialize an empty state
+      navigator.usb_device_map = {};
+      navigator.output_transfers = [];
+      navigator.input_transfers = [];
 
-    // enumerate devices and allocate/assign handles
-    navigator.usb_devices = await navigator.usb.getDevices();
-    for(let i = 0; i < navigator.usb_devices.length; i++) {
-      navigator.usb_devices[i]._handle = handles[i];
-      navigator.usb_device_map[handles[i]] = navigator.usb_devices[i];
-    }
+      // enumerate devices and allocate/assign handles
+      navigator.usb_devices = await navigator.usb.getDevices();
+      for(let i = 0; i < navigator.usb_devices.length; i++) {
+        navigator.usb_devices[i]._handle = handles[i];
+        navigator.usb_device_map[handles[i]] = navigator.usb_devices[i];
+      }
+
+    }, arguments.callee.name);
   },
 
 
@@ -122,21 +221,6 @@ const rpc = {
       default:
         return "";
     }
-  },
-
-
-  wait_for_reconnect: async function() {
-  
-    // if we saw a disconnect, wait for the device to reconnect
-    if(navigator.disconnect_counter > 0) {
-      console.warn("waiting for device to reconnect...");
-      return new Promise((resolve) => {
-        navigator.reconnect_resolver = resolve;
-      });
-    };
-  
-    // no disconnected devices, so return immediately
-    return new Promise((resolve) => { resolve(); });
   },
 
 
@@ -343,7 +427,6 @@ async function process_message(e, port) {
           start: now,
           endpoint: a.endpoint,
         });
-        console.log(`a.timeout: ${a.timeout}`);
         if(a.timeout > 0) {
           setTimeout(reject, a.timeout);
         }
@@ -515,41 +598,54 @@ async function process_message(e, port) {
 
 
 
-/*
-  worker-global USB state
-*/
-navigator.usb_ports = [];
-navigator.output_transfers = {};
-navigator.input_transfers = {};
+function initialize() {
+
+  navigator.usb_ports = [];
+  navigator.output_transfers = {};
+  navigator.input_transfers = {};
+  navigator.disconnect_counter = 0;
+
+  navigator.usb.onconnect = (e) => {
+    navigator.disconnect_counter--;
+    console.warn("navigator.usb.onconnect");
+  };
+
+  navigator.usb.ondisconnect = (e) => {
+    navigator.disconnect_counter++;
+    console.warn("navigator.usb.ondisconnect");
+  };  
+}
+
+initialize();
 rpc.timeout_transfers();
 
 
-/*
-  setup disconnect/reconnect handlers
-*/
-if(navigator.reconnect_initialized === undefined) {
-  navigator.disconnect_counter = 0;
-  navigator.reconnect_resolver = null;
-  navigator.reconnect_initialized = performance.now();
+// /*
+//   setup disconnect/reconnect handlers
+// */
+// if(navigator.reconnect_initialized === undefined) {
+//   navigator.disconnect_counter = 0;
+//   navigator.reconnect_resolver = null;
+//   navigator.reconnect_initialized = performance.now();
 
-  // device reconnect handler
-  navigator.usb.onconnect = (e) => {
-    navigator.disconnect_counter--;
-    if(navigator.reconnect_resolver !== null) {
+//   // device reconnect handler
+//   navigator.usb.onconnect = (e) => {
+//     navigator.disconnect_counter--;
+//     if(navigator.reconnect_resolver !== null) {
 
-      // wait 500ms, then resolve
-      setTimeout(() => {
-        navigator.reconnect_resolver();
-        navigator.reconnect_resolver = null;
-      }, 500);
-    }
-  };
+//       // wait 500ms, then resolve
+//       setTimeout(() => {
+//         navigator.reconnect_resolver();
+//         navigator.reconnect_resolver = null;
+//       }, 500);
+//     }
+//   };
   
-  // device disconnect handler
-  navigator.usb.ondisconnect = (e) => {
-    navigator.disconnect_counter++;
-  }
-}
+//   // device disconnect handler
+//   navigator.usb.ondisconnect = (e) => {
+//     navigator.disconnect_counter++;
+//   }
+// }
 
 
 /*

@@ -1,5 +1,0 @@
-#pragma once
-
-const int DESCRIPTOR_INDEX_MANUFACTURER = 1;
-const int DESCRIPTOR_INDEX_PRODUCT = 2;
-const int DESCRIPTOR_INDEX_SERIAL_NUMBER = 3;
