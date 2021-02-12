@@ -19,6 +19,7 @@
         try {
           await get_device();
           msg.innerHTML = "<strike>ACTION REQUIRED: <br /><br />CLICK HERE TO RE-AUTHORIZE THE USB DEVICE</strike><br /><br /> This can be necessary when a device reconnects with a changed device descriptor (i.e. after a firmware update).<br />"
+          uhd_log("info", "WebUSB", "Waiting for the device to come back online...");
         }
 
         catch(e) {
@@ -70,6 +71,8 @@
       window.get_device_error_count = 0;
 
       async function init() {
+
+        uhd_log("info", "WebUSB", "Requesting access to a USRP B2xx (if one is connected).");
 
         // if a device was found, proceed with the wasm loader
         let device = await get_device();

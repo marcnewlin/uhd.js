@@ -45,7 +45,7 @@ const rpc = {
   //   }
   // },
 
-  wrap: async function(func, name) {
+  wrap: async function(func, name, retry) {
 
     try {
       return await func();
@@ -54,7 +54,8 @@ const rpc = {
 
       // handle device disconnect
       if(e instanceof DOMException) {
-        if(e.message == "The device was disconnected.") {
+
+        if(e.message == "The device was disconnected." || e.message == "Access denied.") {
 
           console.warn("rpc.wrap(...) - detected device disconnect, waiting for reconnect");
 
@@ -97,8 +98,17 @@ const rpc = {
         }
       }
 
-      console.warn(e);
-      return LIBUSB_ERROR_NO_DEVICE;
+      if(retry !== true) {
+        console.warn(e);
+        return await rpc.wrap(func, name, true);
+      }
+
+      else {
+        console.warn(e);
+        return LIBUSB_ERROR_NO_DEVICE;
+      }
+
+
     }
   },
 
@@ -558,6 +568,10 @@ async function process_message(e, port) {
       
       // claim the interface
       let ret = await rpc.claim_interface(a.dev_handle, a.interface_number);
+
+      // // lookup the device
+      // if(a.dev !== undefined) device = navigator.usb_device_map[a.dev];
+      // else if(a.dev_handle !== undefined) device = navigator.usb_device_map[a.dev_handle];
 
       // start an input transfer loop on each endpoint
       let interface = device.configuration.interfaces.filter(i => i.interfaceNumber == a.interface_number)[0];

@@ -94,10 +94,12 @@ mergeInto(LibraryManager.library, {
   
   */
   libusb_exit: function(ctx) { 
-    console.warn("libusb_exit");
+    console.warn("libusb_exit - waiting 500ms seconds before returning");
 
-    /* NOP */ 
-    return; 
+    let end = performance.now() + 500;
+    while(performance.now() < end) {
+      // NOP
+    }
   },
 
 
@@ -118,7 +120,7 @@ mergeInto(LibraryManager.library, {
         return LIBUSB_ERROR_NOT_SUPPORTED;
       }
 
-      // spin up the RPC worker thread
+      // spin up the RPC worker thread if needed
       if(navigator.usb_worker === undefined) {
         console.error("navigator.usb_worker not found in libusb_init @ " + Module._pthread_self());
         throw "navigator.usb_worker not found in libusb_init";
@@ -261,6 +263,11 @@ mergeInto(LibraryManager.library, {
       setValue(dev_handle, dev, "i32");
       return await call_rpc(RPC_OPEN_DEVICE, { dev: dev });
     });
+
+    let end = performance.now() + 250;
+    while(performance.now() < end) {
+      // NOP
+    }
 
     mark_end(arguments.callee.name);
     return ret;
