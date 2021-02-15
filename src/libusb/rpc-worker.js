@@ -48,7 +48,7 @@ var rpc = {
                 /* NOP */
                 console.error(error);
               }
-            }, 100);
+            }, 500);
           });
         }
       }
