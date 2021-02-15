@@ -1,0 +1,31 @@
+diff --git a/host/lib/utils/prefs.cpp b/host/lib/utils/prefs.cpp
+index 58c47f730..632a4d470 100644
+--- a/host/lib/utils/prefs.cpp
++++ b/host/lib/utils/prefs.cpp
+@@ -58,17 +58,18 @@ void update_from_key(
+ device_addr_t get_args(const uhd::device_addr_t& user_args,
+     const std::vector<std::string>& keys_to_update_from)
+ {
+-    device_addr_t args;
+-    for (const auto& key : keys_to_update_from) {
+-        update_from_key(key, user_args.get(key, ""), args);
+-    }
++    // device_addr_t args;
++    // for (const auto& key : keys_to_update_from) {
++    //     update_from_key(key, user_args.get(key, ""), args);
++    // }
+ 
+-    // Finally, copy over the original user args:
+-    for (const auto& user_key : user_args.keys()) {
+-        args[user_key] = user_args[user_key];
+-    }
++    // // Finally, copy over the original user args:
++    // for (const auto& user_key : user_args.keys()) {
++    //     args[user_key] = user_args[user_key];
++    // }
+ 
+-    return args;
++    // return args;
++    return user_args;
+ }
+ } // namespace

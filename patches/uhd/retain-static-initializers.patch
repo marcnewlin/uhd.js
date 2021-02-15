@@ -1,0 +1,20 @@
+diff --git a/host/include/uhd/utils/static.hpp b/host/include/uhd/utils/static.hpp
+index 7120ce966..cf4ad5368 100644
+--- a/host/include/uhd/utils/static.hpp
++++ b/host/include/uhd/utils/static.hpp
+@@ -8,6 +8,7 @@
+ #pragma once
+ 
+ #include <uhd/config.hpp>
++#include <emscripten.h>
+ 
+ /*!
+  * Defines a function that implements the "construct on first use" idiom
+@@ -28,6 +29,7 @@
+  * \param _x the unique name of the fixture (unique per source)
+  */
+ #define UHD_STATIC_BLOCK(_x)                           \
++    extern "C" { void EMSCRIPTEN_KEEPALIVE _x(void); } \
+     void _x(void);                                     \
+     static _uhd_static_fixture _x##_fixture(&_x, #_x); \
+     void _x(void)
