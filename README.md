@@ -1,8 +1,8 @@
 # uhd.js
 
-WebAssembly and WebUSB build of UHD 4.0, with a multithreading-friendly shim of the libusb async C-API in Javascript, in order to compile UHD and Boost to WebAssembly with mostly unmodified.
+WebAssembly and WebUSB build of UHD 4.0, with a multithreading-friendly shim of the libusb async C-API in Javascript, in order to compile UHD and Boost to WebAssembly mostly unmodified.
 
-The demo initialzes an Ettus USRP B200/205/210 and streams IQ data to a waterfall plot, all within a Chrome browser-tab.
+The demo initializes an Ettus USRP B200/205/210 and streams IQ data to a waterfall plot, all within a Chrome browser-tab.
 
 Live Demo: 
 
