@@ -125,30 +125,27 @@ mergeInto(LibraryManager.library, {
       }
 
       // wait for reconnect (if we observed a device disconnect)
-      // let devices = await navigator.usb.getDevices();
-      // if(devices.length == 0) return LIBUSB_ERROR
-      // while(devices.length === 0) {
-      //   console.log("no devices found in libusb_init, waiting 1000ms then trying again");
-      //   await new Promise((resolve) => setTimeout(resolve, 1000));
-      //   devices = await navigator.usb.getDevices();
-      // }
+      let devices = await navigator.usb.getDevices();
+      while(devices.length === 0) {
+        console.log("no devices found in libusb_init, waiting 1000ms then trying again");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        devices = await navigator.usb.getDevices();
+      }
       
       // assign the default context
       setValue(ctx, LIBUSB_DEFAULT_CONTEXT, "i32");
 
-      // TODO move to libusb_get_device_list
-
-      // // get the device count and allocate handles
-      // devices = await navigator.usb.getDevices();
-      // navigator.usb_device_count = devices.length;
-      // navigator.usb_device_handles = [];
-      // for(let i = 0; i < navigator.usb_device_count; i++) {
-      //   navigator.usb_device_handles.push(Module._calloc(PTR_SIZE, 1));
-      //   setValue(navigator.usb_device_handles[i], i, "i32");
-      // }
+      // get the device count and allocate handles
+      devices = await navigator.usb.getDevices();
+      navigator.usb_device_count = devices.length;
+      navigator.usb_device_handles = [];
+      for(let i = 0; i < navigator.usb_device_count; i++) {
+        navigator.usb_device_handles.push(Module._calloc(PTR_SIZE, 1));
+        setValue(navigator.usb_device_handles[i], i, "i32");
+      }
     
-      // // assign the device handles
-      // await call_rpc(RPC_INIT_SESSION, { handles: navigator.usb_device_handles });
+      // assign the device handles
+      await call_rpc(RPC_INIT_SESSION, { handles: navigator.usb_device_handles });
 
       return LIBUSB_SUCCESS;
     });
@@ -200,18 +197,6 @@ mergeInto(LibraryManager.library, {
 
       if(ctx != LIBUSB_DEFAULT_CONTEXT) return LIBUSB_ERROR_INVALID_PARAM;
       
-      // get the device count and allocate handles
-      let devices = await navigator.usb.getDevices();
-      navigator.usb_device_count = devices.length;
-      navigator.usb_device_handles = [];
-      for(let i = 0; i < navigator.usb_device_count; i++) {
-        navigator.usb_device_handles.push(Module._calloc(PTR_SIZE, 1));
-        setValue(navigator.usb_device_handles[i], i, "i32");
-      }
-    
-      // assign the device handles
-      await call_rpc(RPC_INIT_SESSION, { handles: navigator.usb_device_handles });
-
       // allocate and assign the top-level array (with a terminating null entry)
       let l = Module._calloc(PTR_SIZE, (navigator.usb_device_count+1));
       setValue(list, l, "i32");
