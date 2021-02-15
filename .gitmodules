@@ -1,9 +1,0 @@
-[submodule "external/boost"]
-	path = external/boost
-	url = https://github.com/boostorg/boost.git
-[submodule "external/uhd"]
-	path = external/uhd
-	url = https://github.com/EttusResearch/uhd.git
-[submodule "external/kissfft"]
-	path = external/kissfft
-	url = https://github.com/mborgerding/kissfft
