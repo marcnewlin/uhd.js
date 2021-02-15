@@ -2,14 +2,47 @@
 
   <head>
 
-    <link rel="stylesheet" href="libusb.css" />
+    <script src="config.js"></script>
+    <script src="waterfall.js"></script>
+    <link rel="stylesheet" href="index.css" />
 
     <script>
+      
+      /*
+
+      display a prompt to trigger a user-initiated USB auth request
+
+      */
+      function show_get_device_prompt() {
+        uhd_log("info", "WebUSB", "<b>ACTION REQUIRED: </b><br /><br /><a href='javascript:request_b2xx_clear_prompt();' id='reauth'><b>CLICK HERE TO RE-AUTHORIZE THE USB DEVICE</b></a><br /><br /> This can be necessary when a device reconnects with a changed device descriptor (i.e. after a firmware update).<br />");
+      }
+      
 
 
-      async function get_device() {
+      /*
 
-        let found = false;
+      request access to a b2xx and clear the anchor
+
+      */
+      async function request_b2xx_clear_prompt() {
+        let a = document.getElementById("reauth");
+        try {
+          await b2xx_auth_request();
+          a.parentElement.innerHTML = "<strike>ACTION REQUIRED: <br /><br />CLICK HERE TO RE-AUTHORIZE THE USB DEVICE</strike><br /><br /> This can be necessary when a device reconnects with a changed device descriptor (i.e. after a firmware update).<br />"
+          uhd_log("info", "WebUSB", "Waiting for the device to come back online...");
+        }
+        catch(e) { /* NOP (auth dialog cancellation) */ }
+      }
+
+
+
+      /*
+
+      get an already authorized b2xx (or display the auth dialog)
+
+      */
+      async function b2xx_auth_request() {
+
         let device = undefined;
 
         let vendor_id = 0x2500;
@@ -28,7 +61,7 @@
         let filtered = devices.filter(function(d) {
           return d.vendorId == vendor_id && product_ids.includes(d.productId);
         });
-        if(filtered.length > 0) { found = true; device=filtered[0]; }
+        if(filtered.length > 0) { device=filtered[0]; }
 
         // no pre-auth'd device found
         else {
@@ -39,55 +72,24 @@
             filters.push( { vendorId: vendor_id, productId: pid });
           }
           device = await navigator.usb.requestDevice({filters: filters});
-
-          // check if the user authorized a device
-          if(device !== undefined) found = true;
         }
 
         return device;
       }
 
-      window.get_device_error_count = 0;
 
-      async function do_get_device() {
-        try {
-          let d = await get_device();
-          window.get_device_error_count = 0;
-          setTimeout(do_get_device, 1000);
-        }
-        catch(error) {
 
-          window.get_device_error_count++;
-          console.error(error);
-          console.error("error count ", window.get_device_error_count);
+      /*
 
-          if(window.get_device_error_count > 2) {
-            let b = document.createElement("button");
-            b.id = "reauth";
-            b.style.padding = "1em";
-            b.onclick = () => {
-              do_get_device();
-              document.getElementById("reauth").hidden = true;
-            };
-            b.innerHTML = "<span style='color: blue; font-weight: bold;'>Click here to re-authorize the device. This is only necessary once on this browser.</span>";
-            document.body.appendChild(b);
-          }
+      find an attached b2xx, then start the application
 
-          else {
-            setTimeout(do_get_device, 1000);
-          }
-
-          // console.error("do_get_device error");
-          // console.error(error);
-        }
-        
-        // console.log(d);
-      }
-
+      */
       async function init() {
 
+        uhd_log("info", "WebUSB", "Requesting access to a USRP B2xx (if one is connected).", 0);
+
         // if a device was found, proceed with the wasm loader
-        let device = await get_device();
+        let device = await b2xx_auth_request();
         let vid = device.vendorId;
         let pid = device.productId;
         console.log(device);
@@ -96,117 +98,70 @@
           console.log(`The requested USB device ${vid.toString(16)}:${pid.toString(16)} was found.`);
         }
 
-        // no device found, inform the user
-        else {
-          console.log("The wasm loader is not being called, because the USB device was not found.");
-          return;
-        }
-
         // start the runtime by appending a "main.js" script tag
         console.log(Module);
         let s = document.createElement("script");
         s.src = "main.js";
         document.body.appendChild(s);
-        start_offset = performance.now();
-        do_get_device();
       }
 
-      var active_error_message = false;
-      var active_error_message_id = -1;
-      var log_msg_count = 0;
 
+
+      /*
+
+      handler for displaying UHD-style log messages
+
+      */
       function uhd_log(level, component, message) {
-
-        if(level !== "info") return;
-
         const log_div = document.getElementById("log");
-
-        let ts = `<div class='log-cell log-timestamp'>${parseInt(performance.now()-start_offset, 10)}</div>`;
+        let ts = `<div class='log-cell log-timestamp'>${parseInt(performance.now(), 10)}</div>`;
         let td2 = `<div class='log-cell log-level-${level}'>${level.toUpperCase()}</div>`;
         let td3 = `<div class='log-cell log-level-${level}'>${component}</div>`;
         let td4 = `<div class='log-cell log-message'>${message}</div>`;
-        let entry = `<div class='log-entry-row'>${ts}${td2}${td3}${td4}</div>`;
-
+        let entry = `<div class='log-entry-row log-entry-${level}'>${ts}${td2}${td3}${td4}</div>`;
         log_div.innerHTML += entry;
       }
 
+
+
+      /*
+
+      handler for stderr output from wasmland
+
+      */
       async function handle_stderr(line) {
         let msg = line;
 
         if(line.includes(";39m")) {
-        
+
           let re =  /\d;\d+m\[(.+?)\] \[(.+?)\] .\[\d;\d+m(.+)/mg;
           let groups = re.exec(line);
           let level = groups[1].toLowerCase();
           let component = groups[2];
-        
-          msg = groups[3];  
+          msg = groups[3];
+
           uhd_log(level, component, msg);
-          log_msg_count += 1;
         }
         console.log("[stderr] %c" + msg, "color:blue;");
       }
 
-      async function handle_stdout(msg) {
-        console.log("[stdout] %c" + msg, "color:purple;");
-      }
 
+
+      /*
+
+      set initial properties for Emscripten Module instance
+
+      */
       var Module = {
         printErr: handle_stderr,
-        logReadFiles: true,
         noInitialRun: true,
         onRuntimeInitialized: async function() {
           console.error("onRuntimeInitialized");
 
-          let pb = Module._power_buffer()/4;
-          var pixel_buffer_view = HEAPF32.subarray(pb, pb+512*1024);
+          /*
+            fetch device images and write them to MEMFS
+          */
 
-          window.draw_waterfall = function() {
-
-            let row_offset = Module._row_offset();
-
-            const width = 512;
-            const height = 1024;
-
-            const range = {
-              low: -80.0,
-              high: -20.0,
-            };
-
-            var waterfall = document.getElementById('waterfall');
-            var ctx = waterfall.getContext('2d');
-
-            var data = new ImageData(width, height);
-
-            for(let row = 0; row < height; row++) {
-
-              let r = row;
-              if(row_offset != -1) {
-                r = r - row_offset;
-                if(r < 0) r += height;
-              }
-
-              for(let col = 0; col < width; col++) {
-
-                let f = pixel_buffer_view[row*width+col];
-                if(f < range.low || f == 0.0) f = range.low;
-                else if(f > range.high && f < 0.0) f = range.high;
-                f = (f - range.low) * 255.0 / (range.high - range.low);
-
-                data.data[(r*width+col)*4+1] = f;
-                data.data[(r*width+col)*4+3] = 255;
-              }
-            }
-
-            ctx.scale(1, -1);
-            ctx.putImageData(data, 0, 0);
-
-            window.requestAnimationFrame(window.draw_waterfall);
-          };
-          
-          window.requestAnimationFrame(window.draw_waterfall);
-
-          // fetch any defined input files into memfs
           let image_list = [
             "usrp_b200_fpga.bin",
             "usrp_b200_fw.hex",
@@ -244,7 +199,6 @@
         },
       };
 
-
     </script>
   </head>
 
@@ -265,20 +219,22 @@
 
     </div>
 
-    <canvas id="waterfall" width=512 height=1024 style="float: right;">
-
-    </canvas>
-
-    <div id="log">
-
-    </div>
+    <table>
+      <tr>
+        <td style="vertical-align: top; width: 100%;">
+          <div id="log"></div>
+        </td>
+        <td style="vertical-align: top;">
+          <canvas id="waterfall" style="float: right; background-color: black;" width="512" height="1024">
+          </canvas>
+        </td>
+      </tr>
+    </table>
 
     <script>
       var clock_div = document.getElementById("clock");
-      var rpc_count_div = document.getElementById("rpc-count");
-      var start_offset = 0;
       setInterval(() => {
-        clock_div.innerHTML = (performance.now() - start_offset).toFixed(3);
+        clock_div.innerHTML = (performance.now()).toFixed(3);
       }, 50);
     </script>
 
